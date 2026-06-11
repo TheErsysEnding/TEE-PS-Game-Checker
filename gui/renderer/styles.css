@@ -366,7 +366,10 @@ body { display: flex; flex-direction: column; }
   color: #e9c45a;                          /* Gold */
   -webkit-text-stroke: 0.4px #000;          /* schwarzer Rand */
   background: rgba(0, 0, 0, 0.30); border: 1px solid rgba(0, 0, 0, 0.45);
+  text-decoration: none; cursor: pointer; -webkit-app-region: no-drag; transition: background .15s var(--ease);
 }
+.tee-tag:hover { background: rgba(0, 0, 0, 0.45); }
+.social-link.linktree { font-weight: 700; }
 .footer-by { color: var(--text-soft); }
 .social-link {
   color: var(--accent); text-decoration: none; font-weight: 600;

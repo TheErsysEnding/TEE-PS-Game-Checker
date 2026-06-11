@@ -2,7 +2,7 @@
 
 A friendly Windows desktop tool to **verify whether PlayStation game leaks are real** — by cross-checking Sony's own public endpoints, the Korean ratings database, and local `.pkg` files. Built with Electron in a clean Windows 11 / Fluent style.
 
-> Made by **TheErsysEnding** (TEE) · [YouTube](https://www.youtube.com/@TheErsysEnding) · [TikTok](https://www.tiktok.com/@TheErsysEnding) · [Instagram](https://www.instagram.com/TheErsysEnding) · [X](https://x.com/TheErsysEnding)
+> Made by **TheErsysEnding** (TEE) · [Linktree](https://linktr.ee/theersysending) · [YouTube](https://www.youtube.com/@TheErsysEnding) · [TikTok](https://www.tiktok.com/@TheErsysEnding) · [Instagram](https://www.instagram.com/TheErsysEnding) · [X](https://x.com/TheErsysEnding)
 
 ---
 
