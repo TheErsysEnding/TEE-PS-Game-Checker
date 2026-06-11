@@ -85,4 +85,4 @@ Sony patch server · PlayStation Store GraphQL (public) · [PlatPrices](https://
 
 ---
 
-🤖 Built with [Claude Code](https://claude.com/claude-code) (Claude Opus 4.8). Every commit is co-authored accordingly.
+🤖 Built with [Claude Code](https://claude.com/claude-code) (Claude Opus 4.8). Every commit is co-authored accordingly — see [CONTRIBUTORS.md](CONTRIBUTORS.md).
