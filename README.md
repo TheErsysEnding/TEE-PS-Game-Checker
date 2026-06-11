@@ -82,3 +82,7 @@ Sony patch server · PlayStation Store GraphQL (public) · [PlatPrices](https://
 ## 📜 License
 
 [GPL-3.0-or-later](LICENSE). Free software — anyone can inspect, rebuild and verify it independently.
+
+---
+
+🤖 Built with [Claude Code](https://claude.com/claude-code) (Claude Opus 4.8). Every commit is co-authored accordingly.
