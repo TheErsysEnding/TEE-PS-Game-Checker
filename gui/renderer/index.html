@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;" />
+  <title>TEE PS Game Checker</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Titelleiste (Drag-Bereich). Min/Max/Close kommen nativ von Windows (titleBarOverlay). -->
+  <header class="titlebar">
+    <div class="brand">
+      <span class="brand-logo">🎮</span>
+      <span class="brand-name">TEE PS Game Checker</span>
+      <span class="brand-tag" data-i18n="brand.tag">PSN · Patch-Server · GRAC</span>
+    </div>
+    <div class="titlebar-actions">
+      <div class="lang-switch" role="group" aria-label="Language">
+        <button class="lang-btn" data-lang="de">DE</button>
+        <button class="lang-btn" data-lang="en">EN</button>
+        <button class="lang-btn" data-lang="tr">TR</button>
+      </div>
+      <button id="themeBtn" class="icon-btn" aria-label="Theme">◐</button>
+    </div>
+  </header>
+
+  <main class="app">
+    <!-- Modus-Umschalter -->
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-mode="check" role="tab">
+        <span class="tab-ico">🔎</span> <span data-i18n="tab.check">Prüfen</span>
+        <small data-i18n="tab.check.sub">CUSA / Produkt-ID</small>
+      </button>
+      <button class="tab" data-mode="search" role="tab">
+        <span class="tab-ico">🗂️</span> <span data-i18n="tab.search">Suchen</span>
+        <small data-i18n="tab.search.sub">im PS Store nach Name</small>
+      </button>
+      <button class="tab" data-mode="pkg" role="tab">
+        <span class="tab-ico">🔐</span> <span data-i18n="tab.pkg">PKG prüfen</span>
+        <small data-i18n="tab.pkg.sub">Datei gegen Sony abgleichen</small>
+      </button>
+      <button class="tab" data-mode="watch" role="tab">
+        <span class="tab-ico">📡</span> <span data-i18n="tab.watch">Watcher</span>
+        <small data-i18n="tab.watch.sub">automatisch überwachen</small>
+      </button>
+    </nav>
+
+    <!-- PRÜFEN -->
+    <section class="panel" id="panel-check">
+      <div class="search-row">
+        <input id="checkInput" class="text-input" type="text" spellcheck="false" data-i18n-ph="check.ph" />
+        <button id="checkBtn" class="btn btn-accent" data-i18n="check.btn">Prüfen</button>
+      </div>
+      <div class="hint" data-i18n-html="check.hint"></div>
+      <div class="chips" id="checkChips">
+        <button class="chip" data-val="CUSA57547" data-grac="Black Ops">Black Ops 1 (CUSA57547)</button>
+        <button class="chip" data-val="CUSA57548" data-grac="Black Ops 2">Black Ops 2 (CUSA57548)</button>
+        <button class="chip" data-val="UP0002-CUSA08829_00-CODMWTHEGAME0001" data-i18n="chip.mw">MW 2019 (Sanity-Check)</button>
+      </div>
+    </section>
+
+    <!-- SUCHEN -->
+    <section class="panel hidden" id="panel-search">
+      <div class="search-row">
+        <input id="searchInput" class="text-input" type="text" spellcheck="false" data-i18n-ph="search.ph" />
+        <button id="searchBtn" class="btn btn-accent" data-i18n="search.btn">Suchen</button>
+      </div>
+      <div class="hint" data-i18n="search.hint"></div>
+      <div id="searchResults" class="search-results"></div>
+    </section>
+
+    <!-- PKG PRÜFEN -->
+    <section class="panel hidden" id="panel-pkg">
+      <div class="search-row">
+        <button id="pickPkgBtn" class="btn" data-i18n="pkg.pick">📂 PKG-Datei wählen …</button>
+        <button id="verifyPkgBtn" class="btn btn-accent" data-i18n="pkg.verify" disabled>Prüfen</button>
+      </div>
+      <div id="pkgPath" class="pkg-path" data-i18n="pkg.noFile">Noch keine Datei gewählt.</div>
+      <label class="check-row">
+        <input type="checkbox" id="pkgHash" />
+        <span data-i18n="pkg.hashLabel"></span>
+      </label>
+      <div class="hint" data-i18n-html="pkg.hint"></div>
+      <div id="pkgProgress" class="progress hidden">
+        <div class="progress-track"><div class="progress-bar" id="pkgProgressBar"></div></div>
+        <span id="pkgProgressTxt" class="progress-txt"></span>
+      </div>
+    </section>
+
+    <!-- WATCHER -->
+    <section class="panel hidden" id="panel-watch">
+      <div class="search-row">
+        <input id="watchInput" class="text-input" type="text" spellcheck="false" data-i18n-ph="watch.ph" />
+        <button id="watchAddBtn" class="btn" data-i18n="watch.add">+ Hinzufügen</button>
+      </div>
+      <div class="watch-controls">
+        <label class="wc-label"><span data-i18n="watch.interval">Intervall</span>
+          <select id="watchInterval" class="select">
+            <option value="5" data-i18n="watch.int5">alle 5 Min</option>
+            <option value="15" selected data-i18n="watch.int15">alle 15 Min</option>
+            <option value="30" data-i18n="watch.int30">alle 30 Min</option>
+            <option value="60" data-i18n="watch.int60">jede Stunde</option>
+          </select>
+        </label>
+        <button id="watchStartBtn" class="btn btn-accent" data-i18n="watch.start">▶ Start</button>
+        <button id="watchStopBtn" class="btn hidden" data-i18n="watch.stop">⏸ Stop</button>
+        <button id="watchNowBtn" class="btn" data-i18n="watch.now">⟳ Jetzt prüfen</button>
+        <span id="watchStateTxt" class="watch-state-txt" data-i18n="watch.stopped">○ gestoppt</span>
+      </div>
+      <div class="hint" data-i18n-html="watch.hint"></div>
+      <div id="watchTargets" class="watch-targets"></div>
+      <div id="watchLogWrap" class="hidden">
+        <div class="watch-log-head" data-i18n="watch.logHead">Änderungs-Protokoll</div>
+        <div id="watchLog" class="watch-log"></div>
+      </div>
+    </section>
+
+    <!-- Status / Ladeanzeige -->
+    <div id="status" class="status hidden"></div>
+
+    <!-- Ergebnis-Karten -->
+    <div id="results" class="results"></div>
+  </main>
+
+  <footer class="footer">
+    <span id="appInfo"></span>
+    <span class="footer-social">
+      <span class="tee-tag">TEE</span>
+      <span class="footer-by" data-i18n="footer.follow">Folge TheErsysEnding</span>
+      <a class="social-link" href="https://www.youtube.com/@TheErsysEnding" target="_blank" rel="noopener">YouTube</a>
+      <a class="social-link" href="https://www.tiktok.com/@TheErsysEnding" target="_blank" rel="noopener">TikTok</a>
+      <a class="social-link" href="https://www.instagram.com/TheErsysEnding" target="_blank" rel="noopener">Instagram</a>
+      <a class="social-link" href="https://x.com/TheErsysEnding" target="_blank" rel="noopener">X</a>
+    </span>
+    <span class="footer-note" data-i18n="footer.note">Daten: Sony · PlatPrices · GRAC (Korea) — nur öffentliche Endpunkte</span>
+  </footer>
+
+  <script src="i18n.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

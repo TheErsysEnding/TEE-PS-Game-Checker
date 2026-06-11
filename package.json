@@ -1,0 +1,46 @@
+{
+  "name": "tee-ps-game-checker",
+  "version": "1.0.0",
+  "description": "PSN Store / Patch-Server / GRAC Leak-Checker mit Windows-11-GUI",
+  "main": "gui/main.js",
+  "author": "TEE",
+  "license": "GPL-3.0-or-later",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:portable": "electron-builder --win portable",
+    "pack": "electron-builder --dir"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.tee.psgamechecker",
+    "productName": "TEE PS Game Checker",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": [
+      "gui/**/*",
+      "psn_check.js",
+      "grac.js",
+      "pkg.js"
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "TEE PS Game Checker"
+    },
+    "portable": {
+      "artifactName": "TEE-PS-Game-Checker-${version}-portable.exe"
+    }
+  }
+}

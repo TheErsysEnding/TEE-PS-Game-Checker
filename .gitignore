@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Runtime / state
+*.log
+psn_watch.log
+.psn_check_state.json
+.psn_watch.pid
+watch.json
+
+# Test artifacts
+smoke*.png
+smoke_probe.json
+_*.png
+
+# OS / editor
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/
