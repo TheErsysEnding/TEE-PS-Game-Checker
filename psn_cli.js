@@ -8,9 +8,12 @@ const readline = require("node:readline");
 const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
+const os = require("node:os");
 const lib = require("./psn_check.js");
 
-const HOME = process.env.HOME || ".";
+// os.homedir() statt process.env.HOME: auf Windows ist HOME oft nicht gesetzt,
+// sonst landen Log/State im aktuellen Arbeitsverzeichnis statt im Benutzerprofil.
+const HOME = os.homedir();
 const CHECKER = path.join(HOME, "psn_check.js");
 const WATCH_LOG = path.join(HOME, "psn_watch.log");
 const STATE_FILE = path.join(HOME, ".psn_check_state.json");
@@ -292,7 +295,7 @@ async function fetchSearchPage(query, page, locale = "en-us") {
   try {
     const r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0", "Accept-Language": locale } });
     if (r.status !== 200) return { error: `HTTP ${r.status}`, results: [] };
-    const body = await r.text();
+    const body = await lib.readCapped(r, 8 * 1024 * 1024);   // zentraler DoS-Cap aus psn_check.js
     const m = body.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]+?)<\/script>/);
     if (!m) return { error: "no nextdata", results: [] };
     const data = JSON.parse(m[1]);

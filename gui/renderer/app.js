@@ -122,7 +122,9 @@ function renderLookup(data) {
         ${row(t("f.remaster"), `<span title="${esc(t("f.remasterTip"))}" style="border-bottom:1px dotted var(--text-faint);cursor:help">${p.remaster ? "true" : "false"} ⓘ</span>`, true)}
         ${rowMono(t("f.contentId"), p.contentId)}
         ${p.digest ? rowMono(t("f.digest"), p.digest) : ""}
-        ${p.manifestUrl ? row(t("f.manifest"), `<a href="${esc(p.manifestUrl)}" target="_blank" rel="noopener">${esc(p.manifestUrl.slice(0, 70))}…</a>`, true) : ""}
+        ${p.manifestUrl ? row(t("f.manifest"), /^https?:\/\//i.test(p.manifestUrl)
+          ? `<a href="${esc(p.manifestUrl)}" target="_blank" rel="noopener">${esc(p.manifestUrl.slice(0, 70))}…</a>`
+          : `<span class="mono">${esc(p.manifestUrl.slice(0, 90))}</span>`, true) : ""}
       </dl>`));
   } else if (data.patch?.notFound) {
     out.push(card("📦", t("card.patch"), data.cusa || "", `<div class="hint">${esc(t("patch.notReg"))}</div>`));

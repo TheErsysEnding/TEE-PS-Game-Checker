@@ -60,6 +60,22 @@ function parseRating(cellHtml) {
   return null;
 }
 
+// Liest einen fetch-Body mit hartem Byte-Limit — DoS-Schutz vor dem Regex-Parsing
+// (boesartig grosse/kaputte HTML-Antwort koennte sonst den Prozess minutenlang blockieren).
+async function readCapped(r, maxBytes) {
+  const reader = r.body && r.body.getReader ? r.body.getReader() : null;
+  if (!reader) { const txt = await r.text(); if (txt.length > maxBytes) throw new Error("Antwort zu gross"); return txt; }
+  const chunks = []; let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) { try { await reader.cancel(); } catch {} throw new Error("Antwort zu gross"); }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 // Eine einzelne GRAC-Suche. Liefert { query, url, status, error?, entries:[...] }.
 async function searchGrac(query, { timeoutMs = 25000 } = {}) {
   const url = `${GRAC_HOST}${SEARCH_PATH}?gameTitle=${encodeURIComponent(query)}`;
@@ -72,7 +88,7 @@ async function searchGrac(query, { timeoutMs = 25000 } = {}) {
       signal: ctrl.signal,
     });
     if (r.status !== 200) return { query, url, status: r.status, error: `HTTP ${r.status}`, entries: [] };
-    html = await r.text(); // Server liefert UTF-8
+    html = await readCapped(r, 4 * 1024 * 1024); // Server liefert UTF-8; harter DoS-Cap (real ~180 KB)
   } catch (e) {
     return { query, url, status: 0, error: String(e && e.message || e), entries: [] };
   } finally {

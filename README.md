@@ -71,6 +71,12 @@ node pkg.js path/to/game.pkg --hash         # verify a local PKG
 - **GRAC rate-limits aggressively.** After many requests its response time jumps from <1 s to 35–60 s. The Watcher therefore queries GRAC only once per title.
 - **Windows Defender** may lock the freshly built `.exe` while scanning (`output file is locked for writing`), which can stall `electron-builder`. Add a Defender exclusion for the `dist\` folder if it hangs.
 
+## 🔒 Privacy & security
+
+- **The Watcher contacts public servers periodically.** Each interval it sends the CUSAs you track (together with your IP) to Sony / GRAC / PlatPrices. The tool never logs in and sends no account data — but if that visibility matters to you, run it behind a VPN.
+- **The Sony patch-server channel is not CA-validated.** That single host (`gs-sec.ww.np.dl.playstation.net`) uses Sony's own CA, so its TLS certificate is not checked against a trust store (the exception is scoped strictly to this one host). On a hostile network (public Wi-Fi) a man-in-the-middle could in theory feed a faked `ver.xml` — so treat a *"genuine / fake"* verdict obtained on an untrusted network with caution. **All other** endpoints (GraphQL, Store, GRAC, PlatPrices) use normal, verified HTTPS.
+- Hardening in place: responses are **size-capped** before parsing, outbound links are **scheme-restricted to https**, and the renderer escapes all server data under a strict CSP.
+
 ---
 
 ## 🧩 Data sources

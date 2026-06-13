@@ -160,6 +160,23 @@ Beispiele:
   PLATPRICES_KEY=xxx node psn_check.js CUSA57547 --platprices --platprices-name "Black Ops"
 `;
 
+// Liest einen fetch-Response-Body mit hartem Byte-Limit — DoS-Schutz gegen
+// boesartig grosse Antworten (z.B. via MITM), bevor irgendetwas geparst wird.
+// Zentral hier definiert und exportiert, damit alle Netzwerkpfade denselben Cap nutzen.
+async function readCapped(r, maxBytes = 8 * 1024 * 1024) {
+  const reader = r.body && r.body.getReader ? r.body.getReader() : null;
+  if (!reader) { const txt = await r.text(); if (txt.length > maxBytes) throw new Error("response too large"); return txt; }
+  const chunks = []; let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) { try { await reader.cancel(); } catch {} throw new Error("response too large"); }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 async function gqlProduct(productId, locale, hash) {
   const vars = encodeURIComponent(JSON.stringify({ productId }));
   const ext = encodeURIComponent(JSON.stringify({ persistedQuery: { version: 1, sha256Hash: hash } }));
@@ -173,7 +190,7 @@ async function gqlProduct(productId, locale, hash) {
         "x-apollo-operation-name": "metGetProductById",
       },
     });
-    const text = await r.text();
+    const text = await readCapped(r);
     let json = null;
     try { json = JSON.parse(text); } catch {}
     return { status: r.status, json, text };
@@ -195,7 +212,7 @@ async function platpricesByName(name, region, key) {
 async function platpricesFetch(url) {
   try {
     const r = await fetch(url, { headers: { "Accept": "application/json" } });
-    const text = await r.text();
+    const text = await readCapped(r);
     let json = null;
     try { json = JSON.parse(text); } catch {}
     return { status: r.status, json, text };
@@ -318,6 +335,7 @@ async function processId(productId, locales, opts) {
 
 const fs = require("node:fs");
 const path = require("node:path");
+const os = require("node:os");
 const crypto = require("node:crypto");
 const https = require("node:https");
 const { execSync } = require("node:child_process");
@@ -328,12 +346,26 @@ function patchVerUrl(cusa) {
   return `https://${PATCH_HOST}/plo/np/${cusa}/${hash}/${cusa}-ver.xml`;
 }
 
-// Self-signed-Cert-Tolerant HTTPS GET. PS4 Patch-Server hat eigene CA.
+// HTTPS GET fuer den PS4-Patch-Server, der ein Cert einer eigenen (Sony-)CA nutzt.
+// WICHTIG: Dieser EINE Kanal ist NICHT CA-validiert (rejectUnauthorized:false) —
+// alle anderen Endpunkte des Tools nutzen normales, geprueftes HTTPS.
+// Host-Guard: die Cert-Ausnahme wird AUSSCHLIESSLICH fuer PATCH_HOST angewendet
+// (Schutz vor versehentlicher Wiederverwendung fuer fremde Hosts).
+// Byte-Cap: begrenzt die Antwortgroesse (real wenige KB) gegen Speicher-DoS.
+const PATCH_MAX_BYTES = 512 * 1024;
 function httpsGetInsecure(url) {
   return new Promise((resolve) => {
-    const req = https.get(url, { rejectUnauthorized: false, timeout: 15000 }, (res) => {
-      const chunks = [];
-      res.on("data", c => chunks.push(c));
+    let host = "";
+    try { host = new URL(url).hostname; } catch { return resolve({ status: 0, body: "", error: "bad url" }); }
+    const opts = { timeout: 15000 };
+    if (host === PATCH_HOST) opts.rejectUnauthorized = false; // nur dieser eine Sony-Host
+    const req = https.get(url, opts, (res) => {
+      const chunks = []; let total = 0;
+      res.on("data", c => {
+        total += c.length;
+        if (total > PATCH_MAX_BYTES) { req.destroy(); resolve({ status: 0, body: "", error: "response too large" }); return; }
+        chunks.push(c);
+      });
       res.on("end", () => resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString("utf8") }));
     });
     req.on("error", e => resolve({ status: 0, body: "", error: String(e) }));
@@ -371,7 +403,7 @@ async function fetchPatchInfo(cusa) {
   const parsed = parseVerXml(body);
   return { cusa, url, status, parsed, body };
 }
-const STATE_FILE = path.join(process.env.HOME || ".", ".psn_check_state.json");
+const STATE_FILE = path.join(os.homedir(), ".psn_check_state.json");
 
 function loadState() {
   try { return JSON.parse(fs.readFileSync(STATE_FILE, "utf8")); }
@@ -648,7 +680,7 @@ module.exports = {
   fetchPatchInfo, patchVerUrl, parseVerXml,
   gqlProduct, summarizeProduct,
   platprices, platpricesByName, summarizePlatPrices,
-  fmtBytes,
+  fmtBytes, readCapped,
   DEFAULT_HASH_PRODUCT,
   PATCH_HMAC_KEY, PATCH_HOST,
 };

@@ -27,7 +27,7 @@ async function fetchStoreSearch(query, page = 1, locale = "en-us") {
   try {
     const r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0", "Accept-Language": locale } });
     if (r.status !== 200) return { error: `HTTP ${r.status}`, results: [] };
-    const body = await r.text();
+    const body = await PSN.readCapped(r, 8 * 1024 * 1024);   // zentraler DoS-Cap aus psn_check.js
     const m = body.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]+?)<\/script>/);
     if (!m) return { error: "no nextdata", results: [] };
     const data = JSON.parse(m[1]);
@@ -130,9 +130,15 @@ function createWindow() {
   });
   mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
 
-  // Externe Links im Standardbrowser oeffnen, nicht im App-Fenster
+  // Externe Links im Standardbrowser oeffnen, nicht im App-Fenster.
+  // Schema-Whitelist: NUR https/http an die OS-Shell weiterreichen. Verhindert,
+  // dass eine (per MITM faelschbare) manifest_url mit file://, SMB/UNC oder
+  // Custom-Protokoll an shell.openExternal durchreicht (NTLM-Hash-Leak etc.).
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    try {
+      const proto = new URL(url).protocol;
+      if (proto === "https:" || proto === "http:") shell.openExternal(url);
+    } catch { /* ungueltige URL -> ignorieren */ }
     return { action: "deny" };
   });
 
