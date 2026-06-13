@@ -1,6 +1,6 @@
 {
   "name": "tee-ps-game-checker",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "PSN Store / Patch-Server / GRAC Leak-Checker mit Windows-11-GUI",
   "main": "gui/main.js",
   "author": "TEE",
