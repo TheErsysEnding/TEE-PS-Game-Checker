@@ -35,12 +35,13 @@ A leak is only "real" if it shows up where it counts. This tool gives you **thre
 
 ## 🚀 Download & run
 
-Grab a build from the [Releases](#) page:
+Grab a build from the [Releases](https://github.com/TheErsysEnding/TEE-PS-Game-Checker/releases) page:
 
-- **Installer** — `TEE PS Game Checker Setup x.x.x.exe` (Start-menu shortcut, clean uninstall).
-- **Portable** — `TEE-PS-Game-Checker-x.x.x-portable.exe` (single file, no install).
+- 🍎 **macOS (Apple Silicon / arm64)** — `TEE PS Game Checker-x.x.x-arm64.dmg` (open the DMG, drag the app to **Applications**).
+- 🪟 **Windows — Installer** — `TEE PS Game Checker Setup x.x.x.exe` (Start-menu shortcut, clean uninstall).
+- 🪟 **Windows — Portable** — `TEE-PS-Game-Checker-x.x.x-portable.exe` (single file, no install).
 
-> **First launch:** the builds are **not code-signed**, so Windows SmartScreen shows a warning. Click **More info → Run anyway**. This is expected for an open-source tool you can rebuild and verify yourself — that's the whole point of it being open source.
+> **First launch (both platforms):** the builds are **not code-signed** (macOS builds are ad-hoc signed only). On **Windows**, SmartScreen shows a warning → **More info → Run anyway**. On **macOS**, Gatekeeper blocks it → **right-click the app → Open → Open**, or run `xattr -cr "/Applications/TEE PS Game Checker.app"`. This is expected for an open-source tool you can rebuild and verify yourself.
 
 ---
 
@@ -49,11 +50,19 @@ Grab a build from the [Releases](#) page:
 ```bash
 npm install
 npm start            # run in dev
+
+# Windows:
 npm run dist         # build NSIS installer + portable .exe into dist/
 npm run pack         # build the unpacked app only (no installer)
+
+# macOS (Apple Silicon / arm64) — unsigned local build (ad-hoc signed):
+CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist:mac
+# → dist/mac-arm64/TEE PS Game Checker.app  +  dist/*-arm64.dmg / *-arm64-mac.zip
 ```
 
 Requires Node.js 18+ (developed on Node 24). The app icon is generated from `build/icon-src.html` via `electron build/render-icon.js`.
+
+> **macOS first launch:** builds are **unsigned** (ad-hoc only, no Apple Developer ID), so Gatekeeper blocks them. Either right-click the app → **Open** → **Open**, or run `xattr -cr "/Applications/TEE PS Game Checker.app"` and then open it. This is expected for an open-source tool you can rebuild and verify yourself. Apple Silicon only (arm64) — runs natively on M-series chips.
 
 ### Command-line tools (no GUI)
 
