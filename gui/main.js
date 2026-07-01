@@ -3,7 +3,7 @@
 // Der Patch-Server braucht zwingend den Main-Prozess (self-signed TLS via node:https),
 // das ginge im Browser-Renderer nicht.
 
-const { app, BrowserWindow, ipcMain, nativeTheme, shell, dialog, Notification } = require("electron");
+const { app, BrowserWindow, Menu, ipcMain, nativeTheme, shell, dialog, Notification, clipboard } = require("electron");
 const path = require("node:path");
 const fsp = require("node:fs/promises");
 
@@ -113,13 +113,18 @@ function overlayColors() {
 }
 
 function createWindow() {
+  const isMac = process.platform === "darwin";
   mainWindow = new BrowserWindow({
     width: 1140, height: 780, minWidth: 900, minHeight: 600,
     title: "TEE PS Game Checker",
-    backgroundColor: "#00000000",
-    backgroundMaterial: "mica",      // Windows-11-Mica-Effekt
-    titleBarStyle: "hidden",
-    titleBarOverlay: overlayColors(), // native Min/Max/Close im Win11-Stil
+    show: false,   // erst nach 'ready-to-show' zeigen -> kein Theme-Farb-Flackern beim Start
+    // mac: kein Mica, nicht transparent -> deckende Farbe (verhindert schwarzes Flackern).
+    // Windows: transparent, damit der Mica-Effekt durchscheint.
+    backgroundColor: isMac ? (nativeTheme.shouldUseDarkColors ? "#181820" : "#f3f3f6") : "#00000000",
+    titleBarStyle: "hidden",          // frameless; mac zeigt native Ampel-Buttons (links)
+    ...(isMac
+      ? { trafficLightPosition: { x: 14, y: 15 } }               // Ampel in 44px-Leiste zentrieren
+      : { backgroundMaterial: "mica", titleBarOverlay: overlayColors() }), // Windows-11-only
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -129,6 +134,9 @@ function createWindow() {
     },
   });
   mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
+  // Fenster erst zeigen, wenn der Renderer das (gespeicherte) Theme gerendert hat -> verhindert
+  // kurzes Farb-Flackern, falls App-Theme (localStorage) und System-Theme divergieren.
+  mainWindow.once("ready-to-show", () => { if (mainWindow) mainWindow.show(); });
 
   // Externe Links im Standardbrowser oeffnen, nicht im App-Fenster.
   // Schema-Whitelist: NUR https/http an die OS-Shell weiterreichen. Verhindert,
@@ -146,7 +154,8 @@ function createWindow() {
   // und beendet sich. `--smoke` = Check-Tab (Black Ops 1), `--smoke-pkg=<datei>` = PKG-Tab.
   const smokePkg = (process.argv.find((a) => a.startsWith("--smoke-pkg=")) || "").split("=")[1];
   const smokeWatch = process.argv.includes("--smoke-watch");
-  if (process.argv.includes("--smoke") || smokePkg || smokeWatch) {
+  const smokeManifest = process.argv.includes("--smoke-manifest");
+  if (process.argv.includes("--smoke") || smokePkg || smokeWatch || smokeManifest) {
     mainWindow.webContents.once("did-finish-load", async () => {
       try {
         {
@@ -166,6 +175,13 @@ function createWindow() {
                  await window.api.watchAdd("CUSA57547"); await window.api.watchAdd("CUSA57548");
                  await window.api.watchCheckNow(); await refreshWatch();})()`;
           name = "smoke_watch.png"; wait = 4000;
+        } else if (smokeManifest) {
+          js = `(async()=>{const r=await window.api.lookup("CUSA57547",{grac:false});renderLookup(r);
+                 await new Promise((res)=>setTimeout(res,400));
+                 const b=document.querySelector('.manifest-btn'); if(b) b.click();
+                 await new Promise((res)=>setTimeout(res,2500));
+                 const app=document.querySelector('.app'); if(app) app.scrollTop=app.scrollHeight;})()`;
+          name = "smoke_manifest.png"; wait = 5000;
         }
         await mainWindow.webContents.executeJavaScript(js);
         await new Promise((r) => setTimeout(r, wait));
@@ -227,11 +243,73 @@ ipcMain.handle("app-info", () => ({
   chrome: process.versions.chrome,
 }));
 ipcMain.handle("set-lang", (_e, lang) => { if (["de", "en", "tr"].includes(lang)) notifyLang = lang; });
+
+// Text in die Zwischenablage. MUSS im Main-Prozess passieren: im (standardmaessig sandboxed)
+// Preload ist Electrons clipboard-Modul nicht verfuegbar -> daher per IPC hierher.
+ipcMain.handle("clipboard-write", (_e, text) => {
+  try { clipboard.writeText(String(text ?? "")); return true; } catch { return false; }
+});
+
+// Manifest-Extraktor: holt die PlayGo-Manifest-JSON und liefert eine lesbare .pkg-Stueckliste.
+// SSRF-Schutz: NUR *.dl.playstation.net erlaubt — die manifest_url stammt aus dem nicht-CA-
+// validierten Patch-Kanal, darf die App also nicht auf beliebige Hosts locken. Rein lesend.
+ipcMain.handle("manifest-pieces", async (_e, { url }) => {
+  try {
+    let u;
+    try { u = new URL(String(url || "")); } catch { return { error: "Ungültige URL" }; }
+    if (!/^https?:$/.test(u.protocol) || !/(^|\.)dl\.playstation\.net$/i.test(u.hostname)) {
+      return { error: "Nur Hosts unter *.dl.playstation.net erlaubt." };
+    }
+    const r = await fetch(u.href, { headers: { "User-Agent": "Mozilla/5.0" } });
+    if (r.status !== 200) return { error: `HTTP ${r.status}` };
+    const body = await PSN.readCapped(r, 8 * 1024 * 1024);   // DoS-Cap wie bei den anderen Fetches
+    let j;
+    try { j = JSON.parse(body); } catch { return { error: "Ungültiges Manifest-Format (keine JSON-Antwort)." }; }
+    // Nur Stuecke MIT gueltiger URL uebernehmen — ein manipuliertes/kaputtes Manifest kann leere
+    // enthalten; sonst wuerden "leere" Klick-zum-Kopieren-Zeilen entstehen. dropped = wie viele weg.
+    const rawPieces = Array.isArray(j.pieces) ? j.pieces : [];
+    const pieces = rawPieces.filter((p) => p && p.url);
+    const dropped = rawPieces.length - pieces.length;
+    // Gemeinsamen Host/Pfad + Dateinamen-Template ableiten (alle Stuecke teilen sie; nur _N.pkg differiert).
+    let host = "", pathPrefix = "", fileTemplate = "";
+    try {
+      const fu = new URL(pieces[0] && pieces[0].url || "");
+      host = fu.host;
+      const slash = fu.pathname.lastIndexOf("/");
+      pathPrefix = fu.pathname.slice(0, slash + 1);
+      const fname = fu.pathname.slice(slash + 1);
+      // Nur ersetzen, wenn das _N.pkg-Muster wirklich vorliegt (sonst echten Dateinamen zeigen).
+      fileTemplate = /_\d+\.pkg$/i.test(fname) ? fname.replace(/_\d+\.pkg$/i, "_<N>.pkg") : fname;
+    } catch { /* Stueck-URL unparsebar -> Felder bleiben leer */ }
+    return {
+      totalBytes: j.originalFileSize || 0,
+      totalPretty: PSN.fmtBytes(j.originalFileSize || 0),
+      digest: j.packageDigest || "",
+      count: pieces.length,
+      dropped,
+      host, pathPrefix, fileTemplate,
+      pieces: pieces.map((p, i) => {
+        let file = "";
+        try { const pu = new URL(p.url || ""); file = pu.pathname.slice(pu.pathname.lastIndexOf("/") + 1); }
+        catch { file = String(p.url || ""); }
+        const suffix = (file.match(/_\d+\.pkg$/i) || [file])[0];
+        return { i, file, suffix, sizePretty: PSN.fmtBytes(p.fileSize || 0), hashValue: p.hashValue || "", url: p.url || "" };
+      }),
+      allUrls: pieces.map((p) => p.url).filter(Boolean).join("\n"),
+    };
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+});
 ipcMain.handle("win", (_e, action) => {
   if (!mainWindow) return;
-  if (action === "theme-dark") { nativeTheme.themeSource = "dark"; mainWindow.setTitleBarOverlay(overlayColors()); }
-  else if (action === "theme-light") { nativeTheme.themeSource = "light"; mainWindow.setTitleBarOverlay(overlayColors()); }
-  else if (action === "theme-system") { nativeTheme.themeSource = "system"; mainWindow.setTitleBarOverlay(overlayColors()); }
+  if (action === "theme-dark") nativeTheme.themeSource = "dark";
+  else if (action === "theme-light") nativeTheme.themeSource = "light";
+  else if (action === "theme-system") nativeTheme.themeSource = "system";
+  // setTitleBarOverlay ist Windows/Linux-only; auf macOS existiert die Methode nicht (wuerde werfen).
+  if (process.platform !== "darwin" && typeof mainWindow.setTitleBarOverlay === "function") {
+    mainWindow.setTitleBarOverlay(overlayColors());
+  }
 });
 
 // ===================== Live-Watcher =====================
@@ -361,7 +439,15 @@ ipcMain.handle("watch-stop", async () => { stopWatch(); await saveWatch(); retur
 ipcMain.handle("watch-check-now", async () => { await watchTick(); return { ok: true }; });
 
 app.whenReady().then(async () => {
-  app.setAppUserModelId("com.tee.ps-game-checker"); // korrekte Windows-Benachrichtigungen
+  if (process.platform === "win32") {
+    app.setAppUserModelId("com.tee.ps-game-checker"); // korrekte Windows-Benachrichtigungen
+  } else if (process.platform === "darwin") {
+    // Natives macOS-Menue: App (Ueber/Beenden Cmd+Q) + Edit (Cmd+C/V/X/A/Z in Feldern) + Fenster.
+    app.setName("TEE PS Game Checker");
+    Menu.setApplicationMenu(Menu.buildFromTemplate([
+      { role: "appMenu" }, { role: "editMenu" }, { role: "windowMenu" },
+    ]));
+  }
   await loadWatch();
   createWindow();
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });

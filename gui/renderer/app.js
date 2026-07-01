@@ -7,6 +7,12 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
 
 let lastRender = null;   // () => void, rendert den aktuellen Hauptinhalt neu (fuer Sprachwechsel)
 
+// ---------- Plattform-Klasse (mac: native Ampel-Buttons links; siehe styles.css) ----------
+const __platform = (window.api && window.api.platform) === "darwin" ? "platform-mac"
+                 : (window.api && window.api.platform) === "win32" ? "platform-win" : "platform-linux";
+document.documentElement.classList.add(__platform);
+document.addEventListener("DOMContentLoaded", () => document.body.classList.add(__platform));
+
 // ---------- Tabs ----------
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
@@ -125,7 +131,12 @@ function renderLookup(data) {
         ${p.manifestUrl ? row(t("f.manifest"), /^https?:\/\//i.test(p.manifestUrl)
           ? `<a href="${esc(p.manifestUrl)}" target="_blank" rel="noopener">${esc(p.manifestUrl.slice(0, 70))}…</a>`
           : `<span class="mono">${esc(p.manifestUrl.slice(0, 90))}</span>`, true) : ""}
-      </dl>`));
+      </dl>
+      ${p.manifestUrl && /^https?:\/\//i.test(p.manifestUrl) ? `
+      <div class="manifest-box">
+        <button class="btn manifest-btn" data-manifest="${esc(p.manifestUrl)}">${esc(t("mf.show"))}</button>
+        <div class="manifest-out"></div>
+      </div>` : ""}`));
   } else if (data.patch?.notFound) {
     out.push(card("📦", t("card.patch"), data.cusa || "", `<div class="hint">${esc(t("patch.notReg"))}</div>`));
   } else if (data.cusa) {
@@ -165,6 +176,70 @@ function renderLookup(data) {
 
   if (data.errors?.length) out.push(`<div class="hint">⚠ ${data.errors.map(esc).join(" · ")}</div>`);
   $("#results").innerHTML = out.join("");
+  document.querySelectorAll(".manifest-btn").forEach((b) => b.addEventListener("click", () => loadManifest(b)));
+}
+
+// ---------- Manifest-Extraktor (nur Inspektion; Klick=kopieren, KEIN Download) ----------
+async function loadManifest(btn) {
+  const box = btn.parentElement.querySelector(".manifest-out");
+  btn.disabled = true;
+  box.innerHTML = `<div class="hint">${esc(t("mf.loading"))}</div>`;
+  try {
+    const r = await window.api.manifestPieces(btn.dataset.manifest);
+    if (!r || r.error) { box.innerHTML = `<div class="hint">⚠ ${esc((r && r.error) || "Fehler")}</div>`; btn.disabled = false; return; }
+    box.innerHTML = renderManifest(r);
+    wireCopy(box);
+    btn.style.display = "none";
+  } catch (e) {
+    box.innerHTML = `<div class="hint">⚠ ${esc(e.message || String(e))}</div>`;
+    btn.disabled = false;
+  }
+}
+
+function renderManifest(r) {
+  const rows = (r.pieces || []).map((p) => `
+    <div class="mf-piece">
+      <span class="mf-idx">${esc(String(p.i).padStart(2, "0"))}</span>
+      <span class="mf-suffix mono">${esc(p.suffix || p.file || "")}</span>
+      <span class="mf-size">${esc(p.sizePretty || "")}</span>
+      <span class="mf-hash mono">${esc((p.hashValue || "").slice(0, 12))}${p.hashValue ? "…" : ""}</span>
+      <button class="mf-copy" data-copy="${esc(p.url)}" title="${esc(t("mf.copyLink"))}" aria-label="${esc(t("mf.copyLink"))}">📋</button>
+    </div>`).join("");
+  return `
+    <div class="mf-summary"><b>${esc(r.totalPretty || "")}</b> · ${esc(String(r.count || 0))} ${esc(t("mf.pieces"))}${
+      r.digest ? ` · <span class="mono" data-copy="${esc(r.digest)}" title="${esc(t("mf.clickCopy"))}">${esc(r.digest.slice(0, 10))}…</span>` : ""}${
+      r.dropped ? ` · <span class="mf-note">${esc(t("mf.dropped", { n: r.dropped }))}</span>` : ""}</div>
+    <dl class="kv mf-meta">
+      <dt>${esc(t("mf.host"))}</dt><dd class="mono" data-copy="${esc(r.host || "")}" title="${esc(t("mf.clickCopy"))}">${esc(r.host || "—")}</dd>
+      <dt>${esc(t("mf.path"))}</dt><dd class="mono mf-path" data-copy="${esc(r.pathPrefix || "")}" title="${esc(t("mf.clickCopy"))}">${esc(r.pathPrefix || "—")}</dd>
+      <dt>${esc(t("mf.file"))}</dt><dd class="mono">${esc(r.fileTemplate || "—")}</dd>
+    </dl>
+    <div class="mf-list">${rows}</div>
+    <div class="mf-actions">
+      <button class="btn mf-copyall" data-copy="${esc(r.allUrls || "")}">${esc(t("mf.copyAll"))}</button>
+      <span class="mf-note">${esc(t("mf.note"))}</span>
+    </div>`;
+}
+
+function wireCopy(root) {
+  root.querySelectorAll("[data-copy]").forEach((el) => {
+    el.addEventListener("click", async () => {
+      const txt = el.dataset.copy || "";
+      if (!txt) return;   // leere Werte nicht kopieren (kein falsches "kopiert"-Feedback)
+      const ok = await window.api.copy(txt);
+      if (ok !== false) showToast("✓ " + t("mf.copied"));
+    });
+  });
+}
+
+let __toastTimer = null;
+function showToast(msg) {
+  let el = document.getElementById("toast");
+  if (!el) { el = document.createElement("div"); el.id = "toast"; document.body.appendChild(el); }
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(__toastTimer);
+  __toastTimer = setTimeout(() => el.classList.remove("show"), 3000);   // 3 Sek. "kopiert"
 }
 
 function renderGracCard(grac) {

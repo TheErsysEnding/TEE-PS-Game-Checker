@@ -35,4 +35,11 @@ contextBridge.exposeInMainWorld("api", {
   appInfo: () => ipcRenderer.invoke("app-info"),
   // Sprache fuer Main-Prozess-Texte (Desktop-Notifications)
   setLang: (lang) => ipcRenderer.invoke("set-lang", lang),
+  // Plattform fuer plattform-spezifisches CSS (mac: native Ampel-Buttons links)
+  platform: process.platform,   // 'darwin' | 'win32' | 'linux'
+  // Manifest-Extraktor: PlayGo-Manifest holen -> lesbare .pkg-Stueckliste (nur Inspektion)
+  manifestPieces: (url) => ipcRenderer.invoke("manifest-pieces", { url }),
+  // Text in die Zwischenablage (Klick=kopieren bei den Manifest-Links; loest KEINEN Download aus).
+  // Geht an den Main-Prozess, weil das clipboard-Modul im sandboxed Preload fehlt. Promise<boolean>.
+  copy: (text) => ipcRenderer.invoke("clipboard-write", String(text ?? "")),
 });
