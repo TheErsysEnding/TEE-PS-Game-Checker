@@ -114,17 +114,20 @@ function overlayColors() {
 
 function createWindow() {
   const isMac = process.platform === "darwin";
+  const isWin = process.platform === "win32";
   mainWindow = new BrowserWindow({
     width: 1140, height: 780, minWidth: 900, minHeight: 600,
     title: "TEE PS Game Checker",
     show: false,   // erst nach 'ready-to-show' zeigen -> kein Theme-Farb-Flackern beim Start
-    // mac: kein Mica, nicht transparent -> deckende Farbe (verhindert schwarzes Flackern).
-    // Windows: transparent, damit der Mica-Effekt durchscheint.
-    backgroundColor: isMac ? (nativeTheme.shouldUseDarkColors ? "#181820" : "#f3f3f6") : "#00000000",
+    // Windows: transparent, damit der Mica-Effekt durchscheint. mac + Linux: deckende
+    // Theme-Farbe (kein Mica dort) -> verhindert schwarzes Flackern / transparenten Rahmen.
+    backgroundColor: isWin ? "#00000000" : (nativeTheme.shouldUseDarkColors ? "#181820" : "#f3f3f6"),
     titleBarStyle: "hidden",          // frameless; mac zeigt native Ampel-Buttons (links)
     ...(isMac
-      ? { trafficLightPosition: { x: 14, y: 15 } }               // Ampel in 44px-Leiste zentrieren
-      : { backgroundMaterial: "mica", titleBarOverlay: overlayColors() }), // Windows-11-only
+      ? { trafficLightPosition: { x: 14, y: 15 } }                  // Ampel in 44px-Leiste zentrieren
+      : isWin
+        ? { backgroundMaterial: "mica", titleBarOverlay: overlayColors() }  // Windows 11: Mica + WCO
+        : {}),   // Linux: frameless ohne WCO -> eigene HTML-Fensterknoepfe (zuverlaessig auf X11/Wayland)
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -306,8 +309,13 @@ ipcMain.handle("win", (_e, action) => {
   if (action === "theme-dark") nativeTheme.themeSource = "dark";
   else if (action === "theme-light") nativeTheme.themeSource = "light";
   else if (action === "theme-system") nativeTheme.themeSource = "system";
-  // setTitleBarOverlay ist Windows/Linux-only; auf macOS existiert die Methode nicht (wuerde werfen).
-  if (process.platform !== "darwin" && typeof mainWindow.setTitleBarOverlay === "function") {
+  // Linux-Fensterknoepfe (eigene HTML-Titelleiste, da frameless ohne WCO).
+  else if (action === "minimize") { mainWindow.minimize(); return; }
+  else if (action === "maximize") { mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize(); return; }
+  else if (action === "close") { mainWindow.close(); return; }
+  // setTitleBarOverlay gilt nur fuer Windows (dort ist die WCO aktiv); auf macOS existiert
+  // die Methode nicht und auf Linux gibt es keine Overlay -> nur auf win32 aufrufen.
+  if (process.platform === "win32" && typeof mainWindow.setTitleBarOverlay === "function") {
     mainWindow.setTitleBarOverlay(overlayColors());
   }
 });
