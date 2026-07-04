@@ -1,6 +1,6 @@
 {
   "name": "tee-ps-game-checker",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "PSN Store / Patch-Server / GRAC Leak-Checker mit GUI (Windows · macOS · Linux)",
   "main": "gui/main.js",
   "author": "TEE <ersy333@gmail.com>",
