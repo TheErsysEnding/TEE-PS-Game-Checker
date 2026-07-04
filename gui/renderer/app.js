@@ -107,6 +107,10 @@ function renderVerdict(data) {
   const live = t("bd.live"), dash = t("bd.dash");
   const bits = [];
   if (hasPatch) bits.push(`<span class="badge ok">${esc(t("bd.patch", { size: data.patch.parsed.sizePretty || t("bd.pkgFound") }))}</span>`);
+  if (data.patch?.parsed?.staged) {
+    const s = data.patch.parsed.staged;
+    bits.push(`<span class="badge warn">${esc(t("bd.staged", { version: s.version, size: s.sizePretty || "" }))}</span>`);
+  }
   bits.push(`<span class="badge ${liveUS ? "ok" : "neutral"}">🇺🇸 US ${liveUS ? live : dash}</span>`);
   bits.push(`<span class="badge ${liveDE ? "ok" : "neutral"}">🇩🇪 DE ${liveDE ? live : dash}</span>`);
   if (gracHits) bits.push(`<span class="badge ${gracFresh ? "ok" : "neutral"}">📝 GRAC: ${gracHits}${gracFresh ? " " + t("bd.gracFrom", { fresh: gracFresh }) : ""}</span>`);
@@ -141,6 +145,26 @@ function renderLookup(data) {
         <button class="btn manifest-btn" data-manifest="${esc(p.manifestUrl)}">${esc(t("mf.show"))}</button>
         <div class="manifest-out"></div>
       </div>` : ""}`));
+
+    // Staging-Erkennung: gestaffelte/entitlement-gebundene Version, die neuer ist als die
+    // oeffentliche (das, was Tracker wie PlayStationSize frueh melden).
+    if (p.staged) {
+      const s = p.staged;
+      out.push(card("🔎", t("card.staged"), `v${esc(s.version)}`, `
+        <div class="hint staged-note">${t("staged.intro", { pub: esc(p.version || "?") })}</div>
+        <div class="hero"><span class="hero-val">${esc(s.sizePretty || "")}</span>
+          <span class="hero-unit">${s.size ? esc(s.size.toLocaleString()) + " " + t("m.bytes") : ""}</span></div>
+        <dl class="kv">
+          ${row(t("f.version"), `${esc(s.version)} <span class="badge warn" style="margin-left:6px">${esc(t("staged.badge"))}</span>`, true)}
+          ${row(t("f.type"), `${esc(s.type || "—")} · ${esc(s.tagType)}${s.distroType ? " · " + esc(s.distroType) : ""}`, true)}
+          ${s.installableDate ? row(t("f.installable"), s.installableDate) : ""}
+          ${s.rolloutPercent ? row(t("f.rollout"), s.rolloutPercent + " %") : ""}
+          ${s.entitlement ? rowMono(t("f.entitlement"), s.entitlement) : ""}
+          ${s.systemVer ? row(t("f.sysver"), s.systemVer) : ""}
+          ${s.digest ? rowMono(t("f.digest"), s.digest) : ""}
+        </dl>
+        <div class="hint">${esc(t("staged.gated"))}</div>`));
+    }
   } else if (data.patch?.notFound) {
     out.push(card("📦", t("card.patch"), data.cusa || "", `<div class="hint">${esc(t("patch.notReg"))}</div>`));
   } else if (data.cusa) {

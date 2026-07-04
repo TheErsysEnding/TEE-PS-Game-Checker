@@ -101,6 +101,8 @@ async function doLookup(input, opts = {}) {
 
   // fmtBytes-Helfer fuer den Renderer mitschicken (Patch-Groesse vorformatiert)
   if (result.patch?.parsed?.size) result.patch.parsed.sizePretty = PSN.fmtBytes(result.patch.parsed.size);
+  // Gestaffelte (entitlement-gated) Version ebenfalls vorformatieren (Staging-Erkennung)
+  if (result.patch?.parsed?.staged?.size) result.patch.parsed.staged.sizePretty = PSN.fmtBytes(result.patch.parsed.staged.size);
   return result;
 }
 
@@ -348,10 +350,20 @@ function watchSnapshot(data, prev) {
   if (data.grac && !data.grac.error) {
     gracFresh = (data.grac.entries || []).filter(e => (e.fileDate || "") >= "2026-01-01").length;
   }
+  // Patch-Felder: bei transientem Server-FEHLER die letzten bekannten Werte behalten
+  // (sonst wuerde ein Netzwerk-Aussetzer beim naechsten erfolgreichen Check Fehlalarme
+  // ausloesen). Bei echtem 404 (notFound) dagegen die Aenderung durchlassen (null).
+  const p = data.patch?.parsed;
+  const patchErrored = !p && !!data.patch?.error;   // Fehler != notFound
+  const keep = (fresh, prevVal, empty) => p ? fresh : (patchErrored ? (prevVal ?? empty) : empty);
   return {
-    name: data.patch?.parsed?.title || data.store?.us?.name || data.store?.de?.name || prev?.name || null,
-    patchVer: data.patch?.parsed?.version || null,
-    patchSize: data.patch?.parsed?.size || 0,
+    name: p?.title || data.store?.us?.name || data.store?.de?.name || prev?.name || null,
+    patchVer: keep(p?.version || null, prev?.patchVer, null),
+    patchSize: keep(p?.size || 0, prev?.patchSize, 0),
+    patchDigest: keep(p?.digest || null, prev?.patchDigest, null),
+    // Staging-Erkennung: gestaffelte/entitlement-Version aus der ver.xml (frueh, wie PlayStationSize)
+    stagedVer: keep(p?.staged?.version || null, prev?.stagedVer, null),
+    stagedSize: keep(p?.staged?.size || 0, prev?.stagedSize, 0),
     storeUS: !!data.store?.us,
     storeDE: !!data.store?.de,
     gracFresh,
@@ -368,6 +380,10 @@ function diffSnapshot(prev, now) {
   if (prev.storeDE && !now.storeDE) ch.push({ code: "deGone" });
   if (now.patchVer && prev.patchVer !== now.patchVer) ch.push({ code: "patchVer", params: { prev: prev.patchVer || "?", now: now.patchVer } });
   else if (now.patchSize && prev.patchSize !== now.patchSize) ch.push({ code: "patchSize", params: { size: PSN.fmtBytes(now.patchSize) } });
+  // Stiller Re-Push: gleiche Version + Groesse, aber anderer Digest (Sony hat das Paket neu gebaut)
+  else if (now.patchDigest && prev.patchDigest && now.patchDigest !== prev.patchDigest) ch.push({ code: "digestRepush" });
+  // Neu erschienene oder geaenderte gestaffelte Version (Staging-Alarm)
+  if (now.stagedVer && prev.stagedVer !== now.stagedVer) ch.push({ code: "stagedNew", params: { version: now.stagedVer, size: now.stagedSize ? PSN.fmtBytes(now.stagedSize) : "?" } });
   if (now.gracFresh != null && prev.gracFresh != null && now.gracFresh > prev.gracFresh) ch.push({ code: "gracNew" });
   return ch;
 }
@@ -375,9 +391,9 @@ function diffSnapshot(prev, now) {
 // Kleines Dict nur fuer die Desktop-Notifications (Main-Prozess kennt die Renderer-i18n nicht).
 let notifyLang = "de";
 const WCHG = {
-  de: { usLive: "🎉 Jetzt im US-Store LIVE", deLive: "🎉 Jetzt im DE-Store LIVE", usGone: "US-Store: wieder entfernt", deGone: "DE-Store: wieder entfernt", patchVer: "Patch-Version {prev} → {now}", patchSize: "Paket-Größe → {size}", gracNew: "Neuer Korea-Rating-Eintrag" },
-  en: { usLive: "🎉 Now LIVE in the US store", deLive: "🎉 Now LIVE in the DE store", usGone: "US store: removed again", deGone: "DE store: removed again", patchVer: "Patch version {prev} → {now}", patchSize: "Package size → {size}", gracNew: "New Korea rating entry" },
-  tr: { usLive: "🎉 Artık ABD mağazasında YAYINDA", deLive: "🎉 Artık DE mağazasında YAYINDA", usGone: "ABD mağazası: tekrar kaldırıldı", deGone: "DE mağazası: tekrar kaldırıldı", patchVer: "Yama sürümü {prev} → {now}", patchSize: "Paket boyutu → {size}", gracNew: "Yeni Kore derecelendirme kaydı" },
+  de: { usLive: "🎉 Jetzt im US-Store LIVE", deLive: "🎉 Jetzt im DE-Store LIVE", usGone: "US-Store: wieder entfernt", deGone: "DE-Store: wieder entfernt", patchVer: "Patch-Version {prev} → {now}", patchSize: "Paket-Größe → {size}", digestRepush: "Paket neu gebaut (gleiche Version, neuer Digest)", stagedNew: "🔎 Staged-Version {version} ({size}) auf Sonys Server", gracNew: "Neuer Korea-Rating-Eintrag" },
+  en: { usLive: "🎉 Now LIVE in the US store", deLive: "🎉 Now LIVE in the DE store", usGone: "US store: removed again", deGone: "DE store: removed again", patchVer: "Patch version {prev} → {now}", patchSize: "Package size → {size}", digestRepush: "Package rebuilt (same version, new digest)", stagedNew: "🔎 Staged version {version} ({size}) on Sony's server", gracNew: "New Korea rating entry" },
+  tr: { usLive: "🎉 Artık ABD mağazasında YAYINDA", deLive: "🎉 Artık DE mağazasında YAYINDA", usGone: "ABD mağazası: tekrar kaldırıldı", deGone: "DE mağazası: tekrar kaldırıldı", patchVer: "Yama sürümü {prev} → {now}", patchSize: "Paket boyutu → {size}", digestRepush: "Paket yeniden derlendi (aynı sürüm, yeni özet)", stagedNew: "🔎 Aşamalı sürüm {version} ({size}) Sony sunucusunda", gracNew: "Yeni Kore derecelendirme kaydı" },
 };
 function wchgText(c) {
   if (typeof c === "string") return c;

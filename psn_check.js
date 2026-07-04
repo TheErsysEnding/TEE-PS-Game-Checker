@@ -373,26 +373,87 @@ function httpsGetInsecure(url) {
   });
 }
 
+// Version "NN.NN" -> vergleichbare Zahl (01.03 -> 1003, 01.69 -> 1069).
+function verNum(v) {
+  const [a, b] = String(v || "").split(".");
+  return (parseInt(a, 10) || 0) * 1000 + (parseInt(b, 10) || 0);
+}
+
+// ver.xml kann MEHRERE Pakete enthalten: das oeffentliche unter <tag>, und
+// gestaffelte/entitlement-gebundene Versionen unter <selective_tag distro_type="entitlement">.
+// Genau DAS ist die Staging-Erkennung: Sony legt kommende/gated Versionen hier ab, BEVOR
+// sie oeffentlich als Standard-Patch ausgerollt werden (z. B. BO1/BO2 v01.03 vs public v01.01).
+function packageFromAttrs(attrStr, ctx) {
+  const attrs = {};
+  for (const m of String(attrStr).matchAll(/(\w+)="([^"]*)"/g)) attrs[m[1]] = m[2];
+  return {
+    tagType: ctx.tagType,                 // "tag" | "selective_tag"
+    distroType: ctx.distroType || "",     // z. B. "entitlement" | "predownload"
+    entitlement: ctx.entitlement || "",   // benoetigte Entitlement-ID, falls gated
+    installableDate: ctx.installableDate || "", // Predownload-Fenster: ab wann installierbar (Go-Live)
+    rolloutPercent: ctx.rolloutPercent || 0,    // gestaffelter Rollout (max. % aus distribution_date)
+    version: attrs.version,
+    versionNum: verNum(attrs.version),
+    size: Number(attrs.size) || 0,
+    digest: attrs.digest,
+    contentId: attrs.content_id,
+    systemVer: attrs.system_ver,
+    type: attrs.type,
+    remaster: attrs.remaster === "true",
+    patchgo: attrs.patchgo === "true",
+    manifestUrl: attrs.manifest_url,
+  };
+}
+
 function parseVerXml(xml) {
   if (!xml || xml.trim() === "Not found") return null;
   const out = {};
   const titleM = xml.match(/<paramsfo>\s*<title>([^<]+)<\/title>/);
   if (titleM) out.title = titleM[1];
-  const pkgM = xml.match(/<package\s+([^>]+)>/);
-  if (pkgM) {
-    const attrs = {};
-    for (const m of pkgM[1].matchAll(/(\w+)="([^"]*)"/g)) attrs[m[1]] = m[2];
-    out.version = attrs.version;
-    out.size = Number(attrs.size) || 0;
-    out.digest = attrs.digest;
-    out.contentId = attrs.content_id;
-    out.systemVer = attrs.system_ver;
-    out.type = attrs.type;
-    out.remaster = attrs.remaster === "true";
-    out.patchgo = attrs.patchgo === "true";
-    out.manifestUrl = attrs.manifest_url;
+
+  // Alle <tag>/<selective_tag>-Bloecke durchgehen und jedes <package> extrahieren.
+  const packages = [];
+  for (const block of xml.matchAll(/<(tag|selective_tag)\b([^>]*)>([\s\S]*?)<\/\1>/g)) {
+    const tagType = block[1];
+    const tagAttrs = block[2] || "";
+    const inner = block[3] || "";
+    const distroType = (tagAttrs.match(/distro_type="([^"]*)"/) || [])[1] || "";
+    const entitlement = (inner.match(/<entitlement\s+id="([^"]*)"/) || [])[1] || "";
+    // Predownload-Fenster (falls vorhanden): Go-Live-Datum + gestaffelter Rollout-%-Satz.
+    // PS4: <predownload_setting>…<installable_date date="…">; PS5: <distro_predownload><installable_date date="…">.
+    const installableDate = (inner.match(/<installable_date\s+date="([^"]*)"/) || [])[1] || "";
+    const rolloutPercent = [...inner.matchAll(/<distribution_date[^>]*\bpercent(?:age)?="(\d+)"/g)]
+      .map(m => parseInt(m[1], 10)).reduce((a, b) => Math.max(a, b), 0);
+    for (const pm of inner.matchAll(/<package\s+([^>]+)>/g)) {
+      packages.push(packageFromAttrs(pm[1], { tagType, distroType, entitlement, installableDate, rolloutPercent }));
+    }
   }
-  return Object.keys(out).length ? out : null;
+  // Fallback: falls die Blockstruktur mal fehlt, das erste <package> global nehmen.
+  if (!packages.length) {
+    const pm = xml.match(/<package\s+([^>]+)>/);
+    if (pm) packages.push(packageFromAttrs(pm[1], { tagType: "tag" }));
+  }
+  if (!packages.length) return Object.keys(out).length ? out : null;
+
+  // Oeffentliches Paket = erstes normales <tag> (kein selective_tag); sonst hoechste Version.
+  const publicPkg = packages.find(p => p.tagType === "tag") || packages.slice().sort((a, b) => b.versionNum - a.versionNum)[0];
+
+  // Rueckwaerts-kompatibel: die Top-Level-Felder beschreiben weiterhin das oeffentliche Paket.
+  Object.assign(out, {
+    version: publicPkg.version, size: publicPkg.size, digest: publicPkg.digest,
+    contentId: publicPkg.contentId, systemVer: publicPkg.systemVer, type: publicPkg.type,
+    remaster: publicPkg.remaster, patchgo: publicPkg.patchgo, manifestUrl: publicPkg.manifestUrl,
+  });
+  out.packages = packages;
+
+  // Staging: gestaffeltes Paket = jedes selective_tag ODER jede Version, die neuer als das
+  // oeffentliche Paket ist (faengt auch entitlement-Betas mit gleicher/niedrigerer Versionsnr.).
+  // Bei mehreren gewinnt die hoechste Version.
+  const candidates = packages
+    .filter(p => p !== publicPkg && (p.tagType === "selective_tag" || p.versionNum > publicPkg.versionNum))
+    .sort((a, b) => b.versionNum - a.versionNum);
+  out.staged = candidates[0] || null;
+  return out;
 }
 
 async function fetchPatchInfo(cusa) {
@@ -519,6 +580,11 @@ async function runOnce(opts, opts_watchSilent = false) {
             console.log(`  Type:       ${p.type}  remaster=${p.remaster}  patchgo=${p.patchgo}`);
             console.log(`  ver.xml:    ${info.url}`);
             console.log(`  manifest:   ${p.manifestUrl}`);
+            if (p.staged) {
+              const s = p.staged;
+              console.log(`  🔎 STAGED:  v${s.version}  ${fmtBytes(s.size)}   (noch nicht oeffentlich)`);
+              console.log(`             ${s.tagType}${s.distroType ? "/" + s.distroType : ""}${s.entitlement ? "  entitlement=" + s.entitlement : ""}  firmware=${s.systemVer}`);
+            }
           }
         } else if (info.notFound) {
           if (!opts_watchSilent) console.log(`\n  [patch-server] ${cusaToProbe}: Not found (Titel im Backend nicht registriert)`);

@@ -2,6 +2,17 @@
 
 All notable changes to **TEE PS Game Checker** are documented here.
 
+## [1.3.0] — 2026-07-04
+
+### 🔎 Staging detection — see staged/entitlement patches before they go public
+- The `ver.xml` parser now reads **every** `<package>` in the patch manifest, including versions Sony stages under `<selective_tag>` (entitlement-gated / pre-download rollout) — not just the first public `<tag>` package.
+- When a **newer/staged version** exists it's surfaced as a **"🔎 Staging detection (not public yet)"** card + a badge in the summary, with its version, byte-exact size, package type (`selective_tag · entitlement`/`predownload`), required entitlement, target firmware and digest — and, when Sony provides a pre-download window, the **go-live date** and **rollout %**.
+- The **Watcher** now tracks the staged version too and fires a desktop notification (`🔎 Staged version X on Sony's server`) the moment one appears or changes — and diffs the **digest** to catch silent same-version re-pushes.
+- This is exactly what trackers like **PlayStationSize** report early: e.g. Black Ops 1 & 2 currently expose a staged **v01.03** on Sony's server while the public patch is still **v01.01**. Honest limits: there is no secret "before the ver.xml" endpoint — the next version's CDN URL is not predictable — so "early" means reading Sony's own staged entry and polling the authoritative `ver.xml` faster than a console re-checks.
+- CLI (`node psn_check.js <CUSA>`) prints the staged package too.
+
+---
+
 ## [1.2.0] — 2026-07-04
 
 ### 🐧 Linux support — **this release ships a `.deb` installer and an AppImage**
