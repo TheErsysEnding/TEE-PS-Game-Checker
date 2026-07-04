@@ -446,11 +446,11 @@ function parseVerXml(xml) {
   });
   out.packages = packages;
 
-  // Staging: gestaffeltes Paket = jedes selective_tag ODER jede Version, die neuer als das
-  // oeffentliche Paket ist (faengt auch entitlement-Betas mit gleicher/niedrigerer Versionsnr.).
-  // Bei mehreren gewinnt die hoechste Version.
+  // Staging: hoechste Version, die ECHT NEUER ist als das oeffentliche Paket. Nur so ist die
+  // Anzeige „neuere Version, noch nicht oeffentlich" ehrlich — ein aelteres/gleich altes
+  // gated Paket ist kein Staging eines kommenden Updates.
   const candidates = packages
-    .filter(p => p !== publicPkg && (p.tagType === "selective_tag" || p.versionNum > publicPkg.versionNum))
+    .filter(p => p !== publicPkg && p.versionNum > publicPkg.versionNum)
     .sort((a, b) => b.versionNum - a.versionNum);
   out.staged = candidates[0] || null;
   return out;
