@@ -2,6 +2,19 @@
 
 All notable changes to **TEE PS Game Checker** are documented here.
 
+## [1.2.0] — 2026-07-04
+
+### 🐧 Linux support — **this release ships a `.deb` installer and an AppImage**
+- Native **x86-64** builds packaged as a **`.deb`** (installs into the system / app grid via `sudo apt install ./…deb`, or a GUI installer like GDebi — the default Ubuntu App Center / snap-store cannot install local `.deb` files) and a portable **`AppImage`** (no install — `chmod +x` and run).
+- **Own in-window title-bar controls** (minimize / maximize / close) on Linux — the window is frameless (single sleek title bar like the Windows/macOS builds) but the buttons are drawn in HTML and wired via IPC, so they work reliably on **X11, XWayland and Wayland/GNOME** (no dependency on Window-Controls-Overlay rendering).
+- Opaque, theme-aware window background on Linux (no Mica, no transparent-frame artifacts); every Windows/macOS tweak stays guarded by `process.platform`.
+- Linux system fonts added to the stacks (**Ubuntu / Cantarell / Noto Sans**, mono: **Ubuntu Mono / DejaVu Sans Mono**).
+- Full **hicolor icon set** (16 → 1024 px) so the launcher/app-grid icon is crisp; `.desktop` entry with proper category & keywords.
+- `.deb` post-install sets the Electron **`chrome-sandbox`** helper setuid-root (required on modern Ubuntu kernels) and refreshes the desktop/MIME/icon caches.
+- **Windows and macOS behaviour is unchanged.**
+
+---
+
 ## [1.1.0] — 2026-07-01
 
 ### 🍎 macOS (Apple Silicon / arm64) support — **this release ships the macOS DMG**

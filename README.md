@@ -40,8 +40,10 @@ Grab a build from the [Releases](https://github.com/TheErsysEnding/TEE-PS-Game-C
 - 🍎 **macOS (Apple Silicon / arm64)** — `TEE PS Game Checker-x.x.x-arm64.dmg` (open the DMG, drag the app to **Applications**).
 - 🪟 **Windows — Installer** — `TEE PS Game Checker Setup x.x.x.exe` (Start-menu shortcut, clean uninstall).
 - 🪟 **Windows — Portable** — `TEE-PS-Game-Checker-x.x.x-portable.exe` (single file, no install).
+- 🐧 **Linux — Installer (`.deb`, x86-64)** — `tee-ps-game-checker_x.x.x_amd64.deb`. Easiest, always works: `sudo apt install ./tee-ps-game-checker_x.x.x_amd64.deb`. For a GUI install, open the `.deb` with a graphical package installer such as **GDebi** (`sudo apt install gdebi`, then double-click the file → **Install Package**) — note that Ubuntu's default "App Center" (snap-store) and GNOME Software cannot install local `.deb` files. Afterwards the app is in your app grid as **TEE PS Game Checker**.
+- 🐧 **Linux — Portable (`AppImage`, x86-64)** — `TEE-PS-Game-Checker-x.x.x-x86_64.AppImage`. No install: `chmod +x` it, then double-click / run.
 
-> **First launch (both platforms):** the builds are **not code-signed** (macOS builds are ad-hoc signed only). On **Windows**, SmartScreen shows a warning → **More info → Run anyway**. On **macOS**, Gatekeeper blocks it → **right-click the app → Open → Open**, or run `xattr -cr "/Applications/TEE PS Game Checker.app"`. This is expected for an open-source tool you can rebuild and verify yourself.
+> **First launch (all platforms):** the builds are **not code-signed** (macOS builds are ad-hoc signed only). On **Windows**, SmartScreen shows a warning → **More info → Run anyway**. On **macOS**, Gatekeeper blocks it → **right-click the app → Open → Open**, or run `xattr -cr "/Applications/TEE PS Game Checker.app"`. On **Linux**, the `.deb` is a normal Debian package (Ubuntu 22.04+/Debian 12+, needs GTK 3); the AppImage needs FUSE (`sudo apt install libfuse2` on newer Ubuntu). This is expected for an open-source tool you can rebuild and verify yourself.
 
 ---
 
@@ -58,7 +60,13 @@ npm run pack         # build the unpacked app only (no installer)
 # macOS (Apple Silicon / arm64) — unsigned local build (ad-hoc signed):
 CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist:mac
 # → dist/mac-arm64/TEE PS Game Checker.app  +  dist/*-arm64.dmg / *-arm64-mac.zip
+
+# Linux (x86-64):
+npm run dist:linux   # build the .deb + AppImage into dist/
+# → dist/tee-ps-game-checker_*_amd64.deb  +  dist/TEE-PS-Game-Checker-*-x86_64.AppImage
 ```
+
+Building the Linux `.deb`/AppImage needs `fakeroot` and `dpkg` (both preinstalled on Debian/Ubuntu). The app runs as a normal desktop app on X11, XWayland and Wayland/GNOME; on Linux the window is frameless with its own minimize/maximize/close buttons.
 
 Requires Node.js 18+ (developed on Node 24). The app icon is generated from `build/icon-src.html` via `electron build/render-icon.js`.
 

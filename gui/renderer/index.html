@@ -23,6 +23,19 @@
       </div>
       <button id="themeBtn" class="icon-btn" aria-label="Theme">◐</button>
     </div>
+    <!-- Linux-Fensterknoepfe (frameless ohne WCO). Nur bei .platform-linux sichtbar; -->
+    <!-- Windows nutzt die native WCO-Overlay, macOS die Ampel-Buttons links. -->
+    <div class="win-ctl" role="group" aria-label="Window controls">
+      <button class="win-ctl-btn" data-win="minimize" aria-label="Minimieren" title="Minimieren">
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><rect x="0" y="4.5" width="10" height="1" fill="currentColor"/></svg>
+      </button>
+      <button class="win-ctl-btn" data-win="maximize" aria-label="Maximieren" title="Maximieren">
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+      </button>
+      <button class="win-ctl-btn win-ctl-close" data-win="close" aria-label="Schließen" title="Schließen">
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1 L9 9 M9 1 L1 9" stroke="currentColor" stroke-width="1.2"/></svg>
+      </button>
+    </div>
   </header>
 
   <main class="app">

@@ -43,6 +43,10 @@ $("#themeBtn").addEventListener("click", () => {
   applyTheme();
 });
 
+// ---------- Linux-Fensterknoepfe (frameless ohne WCO -> per IPC ans Fenster) ----------
+document.querySelectorAll(".win-ctl-btn").forEach((b) =>
+  b.addEventListener("click", () => window.api.win(b.dataset.win)));
+
 // ---------- Sprache ----------
 function updateLangButtons() {
   document.querySelectorAll(".lang-btn").forEach((b) => b.classList.toggle("active", b.dataset.lang === getLang()));

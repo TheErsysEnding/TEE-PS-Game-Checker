@@ -1,16 +1,17 @@
 {
   "name": "tee-ps-game-checker",
-  "version": "1.1.0",
-  "description": "PSN Store / Patch-Server / GRAC Leak-Checker mit Windows-11-GUI",
+  "version": "1.2.0",
+  "description": "PSN Store / Patch-Server / GRAC Leak-Checker mit GUI (Windows · macOS · Linux)",
   "main": "gui/main.js",
-  "author": "TEE",
+  "author": "TEE <ersy333@gmail.com>",
   "license": "GPL-3.0-or-later",
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder",
     "dist:portable": "electron-builder --win portable",
     "pack": "electron-builder --dir",
-    "dist:mac": "electron-builder --mac --arm64"
+    "dist:mac": "electron-builder --mac --arm64",
+    "dist:linux": "electron-builder --linux deb AppImage"
   },
   "devDependencies": {
     "electron": "^33.2.0",
@@ -66,6 +67,32 @@
       "identity": null,
       "hardenedRuntime": false,
       "gatekeeperAssess": false
+    },
+    "linux": {
+      "target": [
+        "deb",
+        "AppImage"
+      ],
+      "category": "Utility",
+      "icon": "build/icons",
+      "maintainer": "TEE <ersy333@gmail.com>",
+      "synopsis": "Verify PlayStation game leaks via Sony's public endpoints & GRAC ratings",
+      "description": "TEE PS Game Checker verifies PlayStation game leaks against Sony's public patch server, the Store backend, Korea's GRAC ratings and local .pkg header checks. Research/verification tool only — it does not download games or bypass DRM.",
+      "desktop": {
+        "Name": "TEE PS Game Checker",
+        "Comment": "Verify PlayStation game leaks (PSN · Patch-Server · GRAC)",
+        "Categories": "Utility;Network;",
+        "Keywords": "PlayStation;PSN;PS4;CUSA;GRAC;PKG;"
+      }
+    },
+    "deb": {
+      "packageCategory": "utils",
+      "priority": "optional",
+      "afterInstall": "build/deb-after-install.sh",
+      "afterRemove": "build/deb-after-remove.sh"
+    },
+    "appImage": {
+      "artifactName": "TEE-PS-Game-Checker-${version}-${arch}.AppImage"
     },
     "nsis": {
       "oneClick": false,
