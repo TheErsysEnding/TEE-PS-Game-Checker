@@ -106,6 +106,10 @@ Sony patch server · PlayStation Store GraphQL (public) · [PlatPrices](https://
 
 [GPL-3.0-or-later](LICENSE). Free software — anyone can inspect, rebuild and verify it independently.
 
+Packaged builds bundle the Electron runtime (Electron, Chromium, Node.js, V8). Their licences and
+sources are listed in [`THIRD-PARTY-LICENSES.md`](THIRD-PARTY-LICENSES.md); the complete attribution
+ships as `LICENSES.chromium.html` next to the executable in every build.
+
 ---
 
 🤖 Built with [Claude Code](https://claude.com/claude-code) (Claude Opus 4.8). Every commit is co-authored accordingly — see [CONTRIBUTORS.md](CONTRIBUTORS.md).
